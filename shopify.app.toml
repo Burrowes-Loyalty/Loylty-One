@@ -4,7 +4,12 @@ application_url = "https://loylty-one-production.up.railway.app"
 embedded = true
 
 [access_scopes]
-scopes = "write_products,read_orders,read_customers"
+scopes = "write_products,read_orders,read_customers,write_discounts"
+
+[app_proxy]
+url = "https://loylty-one-production.up.railway.app"
+subpath = "loyalty-one"
+prefix = "apps"
 
 [webhooks]
 api_version = "2026-07"
