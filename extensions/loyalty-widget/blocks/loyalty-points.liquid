@@ -1,0 +1,184 @@
+{% assign bg_color = block.settings.background_color %}
+{% assign text_color = block.settings.text_color %}
+{% assign button_color = block.settings.button_color %}
+{% assign widget_label = block.settings.widget_label %}
+{% assign guest_label = block.settings.guest_label %}
+{% assign points_ratio = block.settings.points_ratio %}
+{% assign position = block.settings.position %}
+{% assign widget_icon = block.settings.widget_icon %}
+
+{% if position == 'left' %}
+  {% assign pos_style = 'left: 20px;' %}
+{% else %}
+  {% assign pos_style = 'right: 20px;' %}
+{% endif %}
+
+{% if customer %}
+<div id="loyalty-widget" style="
+  position: fixed;
+  bottom: 20px;
+  {{ pos_style }}
+  background: {{ bg_color }};
+  color: {{ text_color }};
+  padding: 12px 20px;
+  border-radius: 50px;
+  font-family: sans-serif;
+  font-size: 14px;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  cursor: pointer;
+  min-width: 200px;
+  text-align: center;
+  transition: border-radius 0.3s;
+">
+  <div onclick="toggleLoyaltyPanel()">{{ widget_icon }} {{ widget_label }}: <strong id="loyalty-points-balance">...</strong></div>
+
+  <div id="loyalty-panel" style="display:none; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;">
+    <div style="font-size:12px; margin-bottom: 8px;">{{ points_ratio }} points = €1 discount</div>
+    <button id="redeem-btn" onclick="redeemPoints()" style="
+      background: {{ button_color }};
+      color: {{ bg_color }};
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+      width: 100%;
+    ">Redeem Points</button>
+    <div id="redeem-result" style="margin-top: 8px; font-size: 12px;"></div>
+  </div>
+</div>
+
+<script>
+  var customerId = {{ customer.id }};
+  var pointsBalance = 0;
+
+  function toggleLoyaltyPanel() {
+    var panel = document.getElementById('loyalty-panel');
+    var widget = document.getElementById('loyalty-widget');
+    if (panel.style.display === 'none') {
+      panel.style.display = 'block';
+      widget.style.borderRadius = '16px';
+    } else {
+      panel.style.display = 'none';
+      widget.style.borderRadius = '50px';
+    }
+  }
+
+  function redeemPoints() {
+    if (pointsBalance < {{ points_ratio }}) {
+      document.getElementById('redeem-result').innerText = 'You need {{ points_ratio }} points to redeem!';
+      return;
+    }
+    document.getElementById('redeem-btn').innerText = 'Redeeming...';
+    fetch('/apps/loyalty-one/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: customerId })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.code) {
+        document.getElementById('redeem-result').innerHTML = '✅ Code: <strong>' + data.code + '</strong>';
+        pointsBalance -= {{ points_ratio }};
+        document.getElementById('loyalty-points-balance').innerText = pointsBalance;
+      } else {
+        document.getElementById('redeem-result').innerText = data.error || 'Error redeeming points';
+      }
+      document.getElementById('redeem-btn').innerText = 'Redeem Points';
+    });
+  }
+
+  fetch('/apps/loyalty-one/points?customer_id=' + customerId)
+    .then(res => res.json())
+    .then(data => {
+      pointsBalance = data.points || 0;
+      document.getElementById('loyalty-points-balance').innerText = pointsBalance;
+    })
+    .catch(() => {
+      document.getElementById('loyalty-points-balance').innerText = 0;
+    });
+</script>
+
+{% else %}
+
+<div id="loyalty-widget" style="
+  position: fixed;
+  bottom: 20px;
+  {{ pos_style }}
+  background: {{ bg_color }};
+  color: {{ text_color }};
+  padding: 12px 20px;
+  border-radius: 50px;
+  font-family: sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+" onclick="window.location.href='/account/login'">
+  {{ widget_icon }} {{ guest_label }}
+</div>
+
+{% endif %}
+
+{% schema %}
+{
+  "name": "Loyalty Points Widget",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "widget_icon",
+      "label": "Widget Icon (emoji)",
+      "default": "🏆"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Widget Background Colour",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Colour",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button Colour",
+      "default": "#ffffff"
+    },
+    {
+      "type": "text",
+      "id": "widget_label",
+      "label": "Points Label",
+      "default": "Your Points"
+    },
+    {
+      "type": "text",
+      "id": "guest_label",
+      "label": "Guest Label",
+      "default": "Join our Loyalty Programme"
+    },
+    {
+      "type": "number",
+      "id": "points_ratio",
+      "label": "Points needed to redeem",
+      "default": 100
+    },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Widget Position",
+      "options": [
+        { "value": "right", "label": "Bottom Right" },
+        { "value": "left", "label": "Bottom Left" }
+      ],
+      "default": "right"
+    }
+  ]
+}
+{% endschema %}

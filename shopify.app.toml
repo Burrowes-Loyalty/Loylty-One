@@ -1,0 +1,25 @@
+client_id = "833784f6b3a533fdfb787b9ba25e0c9d"
+name = "Loyalty-One"
+application_url = "https://example.com"
+embedded = true
+
+[access_scopes]
+scopes = "write_products,read_orders,read_customers"
+
+[webhooks]
+api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/app/uninstalled"
+topics = [ "app/uninstalled" ]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/app/scopes_update"
+topics = [ "app/scopes_update" ]
+
+[auth]
+redirect_urls = [ "https://example.com/api/auth" ]
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
