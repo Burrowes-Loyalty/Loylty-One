@@ -52,6 +52,7 @@
 
 <script>
   var customerId = {{ customer.id }};
+  var shopDomain = "{{ shop.permanent_domain }}";
   var pointsBalance = 0;
 
   function toggleLoyaltyPanel() {
@@ -72,21 +73,32 @@
       return;
     }
     document.getElementById('redeem-btn').innerText = 'Redeeming...';
+    document.getElementById('redeem-btn').disabled = true;
+
     fetch('/apps/loyalty-one/redeem', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer_id: customerId })
+      body: JSON.stringify({ 
+        customer_id: customerId,
+        shop: shopDomain
+      })
     })
     .then(res => res.json())
     .then(data => {
       if (data.code) {
-        document.getElementById('redeem-result').innerHTML = '✅ Code: <strong>' + data.code + '</strong>';
+        document.getElementById('redeem-result').innerHTML = '✅ Your code: <strong>' + data.code + '</strong><br><small>Use at checkout!</small>';
         pointsBalance -= {{ points_ratio }};
         document.getElementById('loyalty-points-balance').innerText = pointsBalance;
       } else {
         document.getElementById('redeem-result').innerText = data.error || 'Error redeeming points';
       }
       document.getElementById('redeem-btn').innerText = 'Redeem Points';
+      document.getElementById('redeem-btn').disabled = false;
+    })
+    .catch(err => {
+      document.getElementById('redeem-result').innerText = 'Something went wrong. Try again.';
+      document.getElementById('redeem-btn').innerText = 'Redeem Points';
+      document.getElementById('redeem-btn').disabled = false;
     });
   }
 
