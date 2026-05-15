@@ -4,9 +4,7 @@ export const action = async ({ request }) => {
   const body = await request.json();
   const { customer_id, shop, reward_id, reward_title, points_cost } = body;
 
-  if (!customer_id || !reward_id) {
-    return Response.json({ error: "Missing required fields" }, { status: 400 });
-  }
+  console.log("REDEEM HIT:", { customer_id, shop, reward_id, points_cost });
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_ANON_KEY;
@@ -18,16 +16,16 @@ export const action = async ({ request }) => {
   };
 
   try {
-    // Get access token from session
+    // Get session/access token
     const session = await prisma.session.findFirst({
       where: { shop }
     });
 
+    console.log("SESSION FOUND:", !!session, session?.accessToken?.slice(0, 10));
+
     if (!session?.accessToken) {
       return Response.json({ error: "Shop not authenticated" }, { status: 401 });
     }
-
-    const accessToken = session.accessToken;
 
     // Get current points
     const ledgerRes = await fetch(
@@ -36,6 +34,8 @@ export const action = async ({ request }) => {
     );
     const ledger = await ledgerRes.json();
     const totalPoints = (ledger || []).reduce((sum, row) => sum + row.points, 0);
+
+    console.log("TOTAL POINTS:", totalPoints, "NEEDED:", points_cost);
 
     if (totalPoints < points_cost) {
       return Response.json({
@@ -50,18 +50,20 @@ export const action = async ({ request }) => {
     );
     const rewards = await rewardRes.json();
     const reward = rewards[0];
+    console.log("REWARD:", reward);
 
-    // Generate unique code
+    // Generate code
     const code = `LOYAL${String(customer_id).slice(-4)}${Date.now().toString(36).toUpperCase()}`.slice(0, 20);
 
     // Create Shopify price rule
+    console.log("CREATING DISCOUNT for shop:", shop);
     const priceRuleRes = await fetch(
       `https://${shop}/admin/api/2026-01/price_rules.json`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Shopify-Access-Token": accessToken,
+          "X-Shopify-Access-Token": session.accessToken,
         },
         body: JSON.stringify({
           price_rule: {
@@ -80,19 +82,25 @@ export const action = async ({ request }) => {
     );
 
     const priceRuleData = await priceRuleRes.json();
+    console.log("PRICE RULE RESPONSE:", JSON.stringify(priceRuleData));
 
     if (priceRuleData.price_rule?.id) {
-      await fetch(
+      const discountRes = await fetch(
         `https://${shop}/admin/api/2026-01/price_rules/${priceRuleData.price_rule.id}/discount_codes.json`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Shopify-Access-Token": accessToken,
+            "X-Shopify-Access-Token": session.accessToken,
           },
           body: JSON.stringify({ discount_code: { code } })
         }
       );
+      const discountData = await discountRes.json();
+      console.log("DISCOUNT CODE RESPONSE:", JSON.stringify(discountData));
+    } else {
+      console.log("PRICE RULE FAILED:", JSON.stringify(priceRuleData));
+      return Response.json({ error: "Failed to create discount" }, { status: 500 });
     }
 
     // Save to redeemed_rewards
@@ -122,8 +130,10 @@ export const action = async ({ request }) => {
       })
     });
 
+    console.log("REDEEM SUCCESS:", code);
     return Response.json({ success: true, code });
   } catch (error) {
+    console.log("REDEEM ERROR:", error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 };
