@@ -1,8 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-const prisma = global.prismaGlobal ?? new PrismaClient({
-  log: ['error', 'warn'],
-});
+const prisma = global.prismaGlobal ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   global.prismaGlobal = prisma;
@@ -27,6 +25,8 @@ async function ensureSessionTable() {
         "locale" TEXT,
         "collaborator" BOOLEAN DEFAULT false,
         "emailVerified" BOOLEAN DEFAULT false,
+        "refreshToken" TEXT,
+        "refreshTokenExpires" TIMESTAMP(3),
         CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
       );
     `);
