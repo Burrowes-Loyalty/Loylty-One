@@ -1,12 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 
-const prisma = global.prismaGlobal ?? new PrismaClient();
+const prisma = global.prismaGlobal ?? new PrismaClient({
+  log: ['error', 'warn'],
+});
 
 if (process.env.NODE_ENV !== "production") {
   global.prismaGlobal = prisma;
 }
 
-// Ensure session table exists
 async function ensureSessionTable() {
   try {
     await prisma.$executeRawUnsafe(`
@@ -26,14 +27,12 @@ async function ensureSessionTable() {
         "locale" TEXT,
         "collaborator" BOOLEAN DEFAULT false,
         "emailVerified" BOOLEAN DEFAULT false,
-        "refreshToken" TEXT,
-        "refreshTokenExpires" TIMESTAMP(3),
         CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
       );
     `);
     console.log("Session table ready");
   } catch (e) {
-    console.log("Session table check:", e.message);
+    console.log("Session table note:", e.message);
   }
 }
 
