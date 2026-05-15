@@ -137,3 +137,7 @@ export const action = async ({ request }) => {
     return Response.json({ error: error.message }, { status: 500 });
   }
 };
+
+export default function Redeem() {
+  return null;
+}
