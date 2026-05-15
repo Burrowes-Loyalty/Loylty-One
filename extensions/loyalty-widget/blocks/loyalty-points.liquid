@@ -36,7 +36,6 @@
 
   <div id="loyalty-panel" style="display:none; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; text-align: left;">
     
-    <!-- Tabs -->
     <div style="display: flex; gap: 8px; margin-bottom: 10px;">
       <button onclick="showTab('rewards')" id="tab-rewards" style="
         flex: 1; padding: 6px; border: none; border-radius: 8px;
@@ -49,14 +48,12 @@
       ">📋 My Codes</button>
     </div>
 
-    <!-- Rewards Tab -->
     <div id="panel-rewards">
       <div id="rewards-list">
         <div style="font-size: 12px; color: #aaa;">Loading rewards...</div>
       </div>
     </div>
 
-    <!-- History Tab -->
     <div id="panel-history" style="display:none;">
       <div id="history-list">
         <div style="font-size: 12px; color: #aaa;">Loading your codes...</div>
@@ -71,7 +68,6 @@
   var customerId = {{ customer.id }};
   var shopDomain = "{{ shop.permanent_domain }}";
   var pointsBalance = 0;
-  var rewards = [];
 
   function toggleLoyaltyPanel() {
     var panel = document.getElementById('loyalty-panel');
@@ -98,11 +94,25 @@
     document.getElementById('tab-history').style.border = tab === 'history' ? 'none' : '1px solid #fff';
   }
 
+  function copyCode(code, btnId) {
+    navigator.clipboard.writeText(code).then(function() {
+      var btn = document.getElementById(btnId);
+      btn.innerText = '✓ Copied!';
+      btn.style.background = '#4ade80';
+      btn.style.color = '#000';
+      setTimeout(function() {
+        btn.innerText = 'Copy';
+        btn.style.background = 'rgba(255,255,255,0.2)';
+        btn.style.color = '#fff';
+      }, 2000);
+    });
+  }
+
   function loadRewards() {
     fetch('/apps/loyalty-one/rewards?shop=' + shopDomain)
       .then(res => res.json())
       .then(data => {
-        rewards = data.rewards || [];
+        var rewards = data.rewards || [];
         var html = '';
         if (rewards.length === 0) {
           html = '<div style="font-size:12px;color:#aaa;">No rewards available yet.</div>';
@@ -114,9 +124,10 @@
             html += '<div style="font-size: 11px; color: #ccc; margin: 2px 0;">' + (reward.description || '') + '</div>';
             html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">';
             html += '<span style="font-size: 12px;">🏆 ' + reward.points_cost + ' pts</span>';
-            html += '<button onclick="redeemReward(\'' + reward.id + '\', \'' + reward.title + '\', ' + reward.points_cost + ')" style="';
-            html += 'background: ' + (canAfford ? '#fff' : '#666') + ';';
-            html += 'color: #000; border: none; padding: 4px 12px; border-radius: 20px;';
+            html += '<button onclick="redeemReward(\'' + reward.id + '\', \'' + reward.title.replace(/'/g, "\\'") + '\', ' + reward.points_cost + ')" style="';
+            html += 'background: ' + (canAfford ? '#fff' : '#555') + ';';
+            html += 'color: ' + (canAfford ? '#000' : '#aaa') + ';';
+            html += 'border: none; padding: 4px 12px; border-radius: 20px;';
             html += 'cursor: ' + (canAfford ? 'pointer' : 'not-allowed') + ';';
             html += 'font-size: 12px; font-weight: bold;">';
             html += canAfford ? 'Redeem' : 'Need more pts';
@@ -140,11 +151,18 @@
         if (codes.length === 0) {
           html = '<div style="font-size:12px;color:#aaa;">No rewards redeemed yet.</div>';
         } else {
-          codes.forEach(function(code) {
+          codes.forEach(function(code, index) {
+            var btnId = 'copy-btn-' + index;
             html += '<div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; margin-bottom: 8px;">';
-            html += '<div style="font-size: 12px; font-weight: bold;">' + code.reward_title + '</div>';
-            html += '<div style="font-size: 13px; font-family: monospace; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 6px; margin: 4px 0; letter-spacing: 1px;">' + code.discount_code + '</div>';
-            html += '<div style="font-size: 10px; color: ' + (code.used ? '#aaa' : '#4ade80') + ';">' + (code.used ? '✓ Used' : '● Active') + '</div>';
+            html += '<div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">' + code.reward_title + '</div>';
+            html += '<div style="display: flex; align-items: center; gap: 6px;">';
+            html += '<div style="font-size: 13px; font-family: monospace; background: rgba(255,255,255,0.15); padding: 4px 8px; border-radius: 6px; letter-spacing: 1px; flex: 1;">' + code.discount_code + '</div>';
+            html += '<button id="' + btnId + '" onclick="copyCode(\'' + code.discount_code + '\', \'' + btnId + '\')" style="';
+            html += 'background: rgba(255,255,255,0.2); color: #fff; border: none; padding: 4px 10px;';
+            html += 'border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;">';
+            html += 'Copy</button>';
+            html += '</div>';
+            html += '<div style="font-size: 10px; margin-top: 4px; color: ' + (code.used ? '#aaa' : '#4ade80') + ';">' + (code.used ? '✓ Used' : '● Active') + '</div>';
             html += '</div>';
           });
         }
@@ -160,7 +178,6 @@
       document.getElementById('redeem-result').innerText = 'Not enough points!';
       return;
     }
-
     document.getElementById('redeem-result').innerText = 'Redeeming...';
 
     fetch('/apps/loyalty-one/redeem', {
@@ -179,9 +196,10 @@
       if (data.code) {
         pointsBalance -= pointsCost;
         document.getElementById('loyalty-points-balance').innerText = pointsBalance;
-        document.getElementById('redeem-result').innerHTML = '✅ Code: <strong style="font-family:monospace;letter-spacing:1px;">' + data.code + '</strong>';
+        document.getElementById('redeem-result').innerHTML = '✅ Code: <strong style="font-family:monospace;">' + data.code + '</strong>';
         loadRewards();
         loadHistory();
+        showTab('history');
       } else {
         document.getElementById('redeem-result').innerText = data.error || 'Error redeeming';
       }
@@ -191,7 +209,6 @@
     });
   }
 
-  // Load points balance
   fetch('/apps/loyalty-one/points?customer_id=' + customerId)
     .then(res => res.json())
     .then(data => {
