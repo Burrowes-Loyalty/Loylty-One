@@ -6,6 +6,7 @@ EXPOSE 3000
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=3000
 
 COPY package.json package-lock.json* ./
 
@@ -17,4 +18,4 @@ RUN npx prisma generate
 
 RUN npm run build
 
-CMD ["npm", "run", "start"]
+CMD ["node_modules/.bin/react-router-serve", "./build/server/index.js"]
