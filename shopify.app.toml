@@ -23,7 +23,12 @@ api_version = "2026-07"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://loylty-one-production.up.railway.app/auth/callback" ]
+redirect_urls = [ 
+  "https://loylty-one-production.up.railway.app/auth/callback",
+  "https://loylty-one-production.up.railway.app/auth",
+  "https://loylty-one-production.up.railway.app/auth/tokens",
+  "https://loylty-one-production.up.railway.app/auth/offline/tokens"
+]
 
 [build]
 automatically_update_urls_on_dev = true
