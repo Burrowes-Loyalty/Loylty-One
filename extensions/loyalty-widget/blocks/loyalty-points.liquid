@@ -3,7 +3,6 @@
 {% assign button_color = block.settings.button_color %}
 {% assign widget_label = block.settings.widget_label %}
 {% assign guest_label = block.settings.guest_label %}
-{% assign points_ratio = block.settings.points_ratio %}
 {% assign position = block.settings.position %}
 {% assign widget_icon = block.settings.widget_icon %}
 
@@ -27,26 +26,44 @@
   z-index: 9999;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   cursor: pointer;
-  min-width: 200px;
+  min-width: 260px;
   text-align: center;
   transition: border-radius 0.3s;
 ">
-  <div onclick="toggleLoyaltyPanel()">{{ widget_icon }} {{ widget_label }}: <strong id="loyalty-points-balance">...</strong></div>
+  <div onclick="toggleLoyaltyPanel()" style="font-weight: bold;">
+    {{ widget_icon }} {{ widget_label }}: <strong id="loyalty-points-balance">...</strong>
+  </div>
 
-  <div id="loyalty-panel" style="display:none; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;">
-    <div style="font-size:12px; margin-bottom: 8px;">{{ points_ratio }} points = €1 discount</div>
-    <button id="redeem-btn" onclick="redeemPoints()" style="
-      background: {{ button_color }};
-      color: {{ bg_color }};
-      border: none;
-      padding: 8px 16px;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: bold;
-      width: 100%;
-    ">Redeem Points</button>
-    <div id="redeem-result" style="margin-top: 8px; font-size: 12px;"></div>
+  <div id="loyalty-panel" style="display:none; margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; text-align: left;">
+    
+    <!-- Tabs -->
+    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+      <button onclick="showTab('rewards')" id="tab-rewards" style="
+        flex: 1; padding: 6px; border: none; border-radius: 8px;
+        background: #fff; color: #000; cursor: pointer; font-size: 12px; font-weight: bold;
+      ">🎁 Rewards</button>
+      <button onclick="showTab('history')" id="tab-history" style="
+        flex: 1; padding: 6px; border: none; border-radius: 8px;
+        background: transparent; color: #fff; cursor: pointer; font-size: 12px;
+        border: 1px solid #fff;
+      ">📋 My Codes</button>
+    </div>
+
+    <!-- Rewards Tab -->
+    <div id="panel-rewards">
+      <div id="rewards-list">
+        <div style="font-size: 12px; color: #aaa;">Loading rewards...</div>
+      </div>
+    </div>
+
+    <!-- History Tab -->
+    <div id="panel-history" style="display:none;">
+      <div id="history-list">
+        <div style="font-size: 12px; color: #aaa;">Loading your codes...</div>
+      </div>
+    </div>
+
+    <div id="redeem-result" style="margin-top: 8px; font-size: 12px; text-align: center;"></div>
   </div>
 </div>
 
@@ -54,6 +71,7 @@
   var customerId = {{ customer.id }};
   var shopDomain = "{{ shop.permanent_domain }}";
   var pointsBalance = 0;
+  var rewards = [];
 
   function toggleLoyaltyPanel() {
     var panel = document.getElementById('loyalty-panel');
@@ -61,47 +79,119 @@
     if (panel.style.display === 'none') {
       panel.style.display = 'block';
       widget.style.borderRadius = '16px';
+      loadRewards();
+      loadHistory();
     } else {
       panel.style.display = 'none';
       widget.style.borderRadius = '50px';
     }
   }
 
-  function redeemPoints() {
-    if (pointsBalance < {{ points_ratio }}) {
-      document.getElementById('redeem-result').innerText = 'You need {{ points_ratio }} points to redeem!';
+  function showTab(tab) {
+    document.getElementById('panel-rewards').style.display = tab === 'rewards' ? 'block' : 'none';
+    document.getElementById('panel-history').style.display = tab === 'history' ? 'block' : 'none';
+    document.getElementById('tab-rewards').style.background = tab === 'rewards' ? '#fff' : 'transparent';
+    document.getElementById('tab-rewards').style.color = tab === 'rewards' ? '#000' : '#fff';
+    document.getElementById('tab-rewards').style.border = tab === 'rewards' ? 'none' : '1px solid #fff';
+    document.getElementById('tab-history').style.background = tab === 'history' ? '#fff' : 'transparent';
+    document.getElementById('tab-history').style.color = tab === 'history' ? '#000' : '#fff';
+    document.getElementById('tab-history').style.border = tab === 'history' ? 'none' : '1px solid #fff';
+  }
+
+  function loadRewards() {
+    fetch('/apps/loyalty-one/rewards?shop=' + shopDomain)
+      .then(res => res.json())
+      .then(data => {
+        rewards = data.rewards || [];
+        var html = '';
+        if (rewards.length === 0) {
+          html = '<div style="font-size:12px;color:#aaa;">No rewards available yet.</div>';
+        } else {
+          rewards.forEach(function(reward) {
+            var canAfford = pointsBalance >= reward.points_cost;
+            html += '<div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; margin-bottom: 8px;">';
+            html += '<div style="font-weight: bold; font-size: 13px;">' + reward.title + '</div>';
+            html += '<div style="font-size: 11px; color: #ccc; margin: 2px 0;">' + (reward.description || '') + '</div>';
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">';
+            html += '<span style="font-size: 12px;">🏆 ' + reward.points_cost + ' pts</span>';
+            html += '<button onclick="redeemReward(\'' + reward.id + '\', \'' + reward.title + '\', ' + reward.points_cost + ')" style="';
+            html += 'background: ' + (canAfford ? '#fff' : '#666') + ';';
+            html += 'color: #000; border: none; padding: 4px 12px; border-radius: 20px;';
+            html += 'cursor: ' + (canAfford ? 'pointer' : 'not-allowed') + ';';
+            html += 'font-size: 12px; font-weight: bold;">';
+            html += canAfford ? 'Redeem' : 'Need more pts';
+            html += '</button>';
+            html += '</div></div>';
+          });
+        }
+        document.getElementById('rewards-list').innerHTML = html;
+      })
+      .catch(() => {
+        document.getElementById('rewards-list').innerHTML = '<div style="font-size:12px;color:#aaa;">Could not load rewards.</div>';
+      });
+  }
+
+  function loadHistory() {
+    fetch('/apps/loyalty-one/my-rewards?customer_id=' + customerId)
+      .then(res => res.json())
+      .then(data => {
+        var codes = data.codes || [];
+        var html = '';
+        if (codes.length === 0) {
+          html = '<div style="font-size:12px;color:#aaa;">No rewards redeemed yet.</div>';
+        } else {
+          codes.forEach(function(code) {
+            html += '<div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; margin-bottom: 8px;">';
+            html += '<div style="font-size: 12px; font-weight: bold;">' + code.reward_title + '</div>';
+            html += '<div style="font-size: 13px; font-family: monospace; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 6px; margin: 4px 0; letter-spacing: 1px;">' + code.discount_code + '</div>';
+            html += '<div style="font-size: 10px; color: ' + (code.used ? '#aaa' : '#4ade80') + ';">' + (code.used ? '✓ Used' : '● Active') + '</div>';
+            html += '</div>';
+          });
+        }
+        document.getElementById('history-list').innerHTML = html;
+      })
+      .catch(() => {
+        document.getElementById('history-list').innerHTML = '<div style="font-size:12px;color:#aaa;">Could not load codes.</div>';
+      });
+  }
+
+  function redeemReward(rewardId, rewardTitle, pointsCost) {
+    if (pointsBalance < pointsCost) {
+      document.getElementById('redeem-result').innerText = 'Not enough points!';
       return;
     }
-    document.getElementById('redeem-btn').innerText = 'Redeeming...';
-    document.getElementById('redeem-btn').disabled = true;
+
+    document.getElementById('redeem-result').innerText = 'Redeeming...';
 
     fetch('/apps/loyalty-one/redeem', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         customer_id: customerId,
-        shop: shopDomain
+        shop: shopDomain,
+        reward_id: rewardId,
+        reward_title: rewardTitle,
+        points_cost: pointsCost
       })
     })
     .then(res => res.json())
     .then(data => {
       if (data.code) {
-        document.getElementById('redeem-result').innerHTML = '✅ Your code: <strong>' + data.code + '</strong><br><small>Use at checkout!</small>';
-        pointsBalance -= {{ points_ratio }};
+        pointsBalance -= pointsCost;
         document.getElementById('loyalty-points-balance').innerText = pointsBalance;
+        document.getElementById('redeem-result').innerHTML = '✅ Code: <strong style="font-family:monospace;letter-spacing:1px;">' + data.code + '</strong>';
+        loadRewards();
+        loadHistory();
       } else {
-        document.getElementById('redeem-result').innerText = data.error || 'Error redeeming points';
+        document.getElementById('redeem-result').innerText = data.error || 'Error redeeming';
       }
-      document.getElementById('redeem-btn').innerText = 'Redeem Points';
-      document.getElementById('redeem-btn').disabled = false;
     })
-    .catch(err => {
-      document.getElementById('redeem-result').innerText = 'Something went wrong. Try again.';
-      document.getElementById('redeem-btn').innerText = 'Redeem Points';
-      document.getElementById('redeem-btn').disabled = false;
+    .catch(() => {
+      document.getElementById('redeem-result').innerText = 'Something went wrong.';
     });
   }
 
+  // Load points balance
   fetch('/apps/loyalty-one/points?customer_id=' + customerId)
     .then(res => res.json())
     .then(data => {
@@ -174,12 +264,6 @@
       "id": "guest_label",
       "label": "Guest Label",
       "default": "Join our Loyalty Programme"
-    },
-    {
-      "type": "number",
-      "id": "points_ratio",
-      "label": "Points needed to redeem",
-      "default": 100
     },
     {
       "type": "select",
